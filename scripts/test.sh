@@ -28,7 +28,7 @@ LOG="/var/log/monitoramento.log"
 TEMP=$(mktemp)
 trap 'rm -f "$TEMP"' EXIT
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-source "$SCRIPT_DIR/setup/user_data.sh"
+. /setup/user_data.sh
 
 # ------------------------------------------------------------------------ #
 
@@ -51,11 +51,12 @@ systemctl status nginx > "$TEMP"
 
 # Test html e css
 [ ! -e "/var/www/html" ] && mkdir /var/www/html
-[ -e "/var/www/html/*" ] && rm -rf "/var/www/html/*" && touch "/var/www/html/index.html" # Tem algo na pasta?
+[ -e "/var/www/html/*" ] && rm -rf "/var/www/html/*"
 [ ! -e "/var/www/html/css" ] && mkdir /var/www/html/css # Verifica se a pasta css existe
 [ -e "/var/www/html/" ] && touch "/var/www/html/index.html" # Existe?
+CriarHtml
 [ -e "/var/www/html/css" ] && touch "/var/www/html/css/style.css" # Existe?
-
+CriarStyle
 
 # Test firewall
 
