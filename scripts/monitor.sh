@@ -32,8 +32,7 @@ source "$DIR/../.env"
 COR=0
 MENSAGEM=""
 DATA=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')
-HOST='http://localhost'
-STATUS_CODES=$(curl -s -o /dev/null -w "%{http_code}" "$HOST")
+STATUS_CODES=$(curl -s -o /dev/null -w "%{http_code}" "$URL_SERVIDOR")
 URL=""
 LOG="/var/log/monitoramento.log"
 
@@ -88,7 +87,7 @@ VerificarStatusCode() {
   esac
 }
 
-export -f VerificarStatusCode
+
 
 ObterCor() {
   case $STATUS_CODES in
@@ -99,7 +98,7 @@ ObterCor() {
   esac
 }
 
-export -f ObterCor
+
 
 EnviarMensagem() {
   JSON=$(cat <<EOF
@@ -114,8 +113,8 @@ EnviarMensagem() {
         },
         "fields": [
           {
-            "name": "Host Verificado",
-            "value": "\`http://localhost:80\`",
+            "name": " Verificado",
+            "value": "\`http://$URL_SERVIDOR:80\`",
             "inline": false
           },
           {
@@ -143,7 +142,7 @@ EOF
 )
   curl -X POST -H "Content-Type: application/json" -d "$JSON" "$WEBHOOK_URL"
 }
-export -f EnviarMensagem
+
 
 # ------------------------------------------------------------------------ #
 

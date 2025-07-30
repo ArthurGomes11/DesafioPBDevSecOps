@@ -28,38 +28,35 @@ LOG="/var/log/monitoramento.log"
 TEMP=$(mktemp)
 trap 'rm -f "$TEMP"' EXIT
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-. /setup/user_data.sh
 
 # ------------------------------------------------------------------------ #
 
 # ------------------------------- TESTES ----------------------------------------- #
 
 
-# Testa o crontab e arquivo log    
+
+# Testa o crontab e arquivo log
 [ ! -e "$LOG" ] && touch "$LOG" # Existe?
+# Instala cron de forma universal
 [ ! -x "$(which cron)" ] && apt-get install cron # Esta instalado?
 systemctl status cron > "$TEMP"
-[ -e "$TEMP" ] && egrep -q "inactive" $TEMP && systemctl start cron # Esta ativo?
-[ -e "$TEMP" ] && egrep -q "disabled" $TEMP && systemctl enable cron # Esta para iniciar com o sistema?
-
+[ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "cron"
+[ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "cron"
 
 # Test nginx
-[ ! -x "$(which nginx)" ] && apt install nginx # Esta instalado?
+# Instala nginx de forma universal
+[ ! -x "$(which nginx)" ] && sudo apt install nginx # Esta instalado?
 systemctl status nginx > "$TEMP"
-[ -e "$TEMP" ] && egrep -q "inactive" $TEMP && systemctl -q start nginx # Esta ativo?
-[ -e "$TEMP" ] && egrep "disabled" $TEMP && systemctl -q enable nginx # Esta para iniciar com o sistema?
+[ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "nginx"
+[ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "nginx"
 
 # Test html e css
-[ ! -e "/var/www/html" ] && mkdir /var/www/html
-[ -e "/var/www/html/*" ] && rm -rf "/var/www/html/*"
-[ ! -e "/var/www/html/css" ] && mkdir /var/www/html/css # Verifica se a pasta css existe
-[ -e "/var/www/html/" ] && touch "/var/www/html/index.html" # Existe?
-CriarHtml
-[ -e "/var/www/html/css" ] && touch "/var/www/html/css/style.css" # Existe?
-CriarStyle
+[ ! -e "/var/www/html" ] && mkdir -p /var/www/html
+[ ! -e "/var/www/html/css" ] && mkdir -p /var/www/html/css
+[ ! -e "/var/www/html/index.html" ] && touch "/var/www/html/index.html"
+[ ! -e "/var/www/html/css/style.css" ] && touch "/var/www/html/css/style.css"
 
 # Test firewall
-
 ufw status > "$TEMP"
 [ -e "$TEMP" ] && egrep -q "Nginx.*HTTP" $TEMP |  grep -q 'DENY' $TEM && echo "$(ufw allow 'Nginx HTTP')" #Nginx esta DENY?
 
