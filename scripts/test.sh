@@ -44,7 +44,6 @@ systemctl status cron > "$TEMP"
 [ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "cron"
 
 # Test nginx
-# Instala nginx de forma universal
 [ ! -x "$(which nginx)" ] && sudo apt install nginx # Esta instalado?
 systemctl status nginx > "$TEMP"
 [ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "nginx"
@@ -68,7 +67,6 @@ IniciarCrontab(){
     local SETUP_DIR
     SETUP_DIR=$(dirname "$(realpath "$0")")
     local MONITOR_PATH="$SETUP_DIR/monitor.sh"
-    # Verifica se cron existe E (||) se a tarefa não existe, então a adiciona.
     [ -x "$(which cron)" ] && \
     (crontab -l 2>/dev/null | grep -qF "$MONITOR_PATH" || \
     (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/flock -n /bin/bash '$MONITOR_PATH'") | crontab -)
