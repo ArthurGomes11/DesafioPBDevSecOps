@@ -25,29 +25,26 @@ sudo systemctl enable cron || true
 sudo systemctl start nginx || true
 sudo systemctl enable nginx || true
 
-# CORREÇÃO CRÍTICA: Liberar a porta SSH (22) ANTES de ativar o firewall.
+# Libera a porta ssh para conecxão 
 sudo ufw allow ssh
 sudo ufw allow 'Nginx HTTP'
 sudo ufw --force enable
 # ------------------------------------------------------------------------ #
 # ------------------------------- VARIÁVEIS ----------------------------------------- #
 LOG="/var/log/monitoramento.log"
-# CORREÇÃO: Caminho absoluto e explícito para os scripts para maior robustez.
-# O usuário padrão no Ubuntu da AWS é 'ubuntu'.
 TARGET_DIR="/home/ubuntu/scripts"
 
 
 # ------------------------------------------------------------------------ #
 
 # ------------------------------- TESTES ----------------------------------------- #
-# Garante que o diretório de scripts exista e pertence ao usuário correto
+
 mkdir -p "$TARGET_DIR"
 sudo chown ubuntu:ubuntu "$TARGET_DIR"
 
 # Cria o arquivo de log
 [ ! -e "$LOG" ] && sudo touch "$LOG" && sudo chmod 666 "$LOG"
 
-# (O restante dos testes é bom, mas a configuração inicial já cuida deles)
 
 # --------------------------------------------------------------------------------- #
 
@@ -164,26 +161,89 @@ EOF
 CriarTest() {
     cat <<'EOF' > "$TARGET_DIR/test.sh"
 #!/usr/bin/env bash
-# test.sh - Configura cron para o monitoramento
+# test.sh - Instala as dependências necessárias
 #
+# Autor:      Arthur Henrike L.M Gomes
+# Manutenção: Arthur Henrike L.M Gomes
+#
+# ------------------------------------------------------------------------ #
+#  Este programa verifica e instala as dependências necessárias para a
+#  correta execução dos scripts de monitoramento.
+#
+#  Exemplos:
+#      $ ./test.sh
+#      Neste exemplo, o script será executado e, se alguma dependência
+#      estiver faltando, ela será instalada automaticamente.
+# ------------------------------------------------------------------------ #
+# Histórico:
+#
+#   v1.0 21/07/2025, Arthur:
+#       - Início do programa
+#       - Conta com a funcionalidade de configurar o crontab
+# ------------------------------------------------------------------------ #
+# Testado em:
+#   bash 5.1.16
+# ------------------------------------------------------------------------ #
 
-# --- Variáveis ---
+# ------------------------------- VARIÁVEIS ----------------------------------------- #
 LOG="/var/log/monitoramento.log"
 TEMP=$(mktemp)
 trap 'rm -f "$TEMP"' EXIT
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 
-# --- Funções ---
+# ------------------------------------------------------------------------ #
+
+# ------------------------------- TESTES ----------------------------------------- #
+
+
+
+# Testa o crontab e arquivo log
+[ ! -e "$LOG" ] && touch "$LOG" # Existe?
+# Instala cron de forma universal
+[ ! -x "$(which cron)" ] && apt-get install cron # Esta instalado?
+systemctl status cron > "$TEMP"
+[ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "cron"
+[ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "cron"
+
+# Test nginx
+[ ! -x "$(which nginx)" ] && sudo apt install nginx # Esta instalado?
+systemctl status nginx > "$TEMP"
+[ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "nginx"
+[ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "nginx"
+
+# Test html e css
+[ ! -e "/var/www/html" ] && mkdir -p /var/www/html
+[ ! -e "/var/www/html/css" ] && mkdir -p /var/www/html/css
+[ ! -e "/var/www/html/index.html" ] && touch "/var/www/html/index.html"
+[ ! -e "/var/www/html/css/style.css" ] && touch "/var/www/html/css/style.css"
+
+# Test firewall
+ufw status > "$TEMP"
+[ -e "$TEMP" ] && egrep -q "Nginx.*HTTP" $TEMP |  grep -q 'DENY' $TEM && echo "$(ufw allow 'Nginx HTTP')" #Nginx esta DENY?
+
+# ------------------------------------------------------------------------ #
+
+# ------------------------------- FUNÇÕES ----------------------------------------- #
+   
 IniciarCrontab(){
-    local MONITOR_PATH="$SCRIPT_DIR/monitor.sh"
-    # Adiciona a tarefa ao crontab se ela ainda não existir, usando flock.
-    if ! (sudo crontab -l 2>/dev/null | grep -qF "$MONITOR_PATH"); then
-        (sudo crontab -l 2>/dev/null; echo "* * * * * /usr/bin/flock -xn $MONITOR_PATH -c \"/bin/bash $MONITOR_PATH\" &>> $LOG") | sudo crontab -
-    fi
+    local SETUP_DIR
+    SETUP_DIR=$(dirname "$(realpath "$0")")
+    local MONITOR_PATH="$SETUP_DIR/monitor.sh"
+    [ -x "$(which cron)" ] && \
+    (crontab -l 2>/dev/null | grep -qF "$MONITOR_PATH" || \
+    (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/flock -n /bin/bash '$MONITOR_PATH'") | crontab -)
 }
 
-# --- Execução ---
+
+
+# ------------------------------------------------------------------------ #
+
+# ------------------------------- EXECUÇÃO ----------------------------------------- #
+
 IniciarCrontab
+
+
+# ------------------------------------------------------------------------ #
 EOF
     chmod +x "$TARGET_DIR/test.sh"
 }
