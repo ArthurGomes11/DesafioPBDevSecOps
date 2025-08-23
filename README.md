@@ -339,51 +339,48 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     # ------------------------------------------------------------------------ #
     #  Este programa irá criar automaticamente os arquivos monitor.sh, test.sh, index.html e style.css
     # ------------------------------------------------------------------------ #
-    
+
     # ------------------------------- SETUP INICIAL DO SISTEMA ----------------------------------------- #
     # Instalação de dependências.
     sudo apt-get update -y
     sudo apt-get install -y curl cron nginx ufw
-    
+
     # Garante permissões corretas para o diretório web
     sudo mkdir -p /var/www/html/css
     sudo chown -R www-data:www-data /var/www/html
     sudo chmod -R 755 /var/www/html
-    
+
     # Inicia e habilita cron e nginx
     sudo systemctl start cron || true
     sudo systemctl enable cron || true
     sudo systemctl start nginx || true
     sudo systemctl enable nginx || true
-    
-    # CORREÇÃO CRÍTICA: Liberar a porta SSH (22) ANTES de ativar o firewall.
+
+    # Libera a porta ssh para conecxão 
     sudo ufw allow ssh
     sudo ufw allow 'Nginx HTTP'
     sudo ufw --force enable
     # ------------------------------------------------------------------------ #
     # ------------------------------- VARIÁVEIS ----------------------------------------- #
     LOG="/var/log/monitoramento.log"
-    # CORREÇÃO: Caminho absoluto e explícito para os scripts para maior robustez.
-    # O usuário padrão no Ubuntu da AWS é 'ubuntu'.
     TARGET_DIR="/home/ubuntu/scripts"
-    
-    
+
+
     # ------------------------------------------------------------------------ #
-    
+
     # ------------------------------- TESTES ----------------------------------------- #
-    # Garante que o diretório de scripts exista e pertence ao usuário correto
+
     mkdir -p "$TARGET_DIR"
     sudo chown ubuntu:ubuntu "$TARGET_DIR"
-    
+
     # Cria o arquivo de log
     [ ! -e "$LOG" ] && sudo touch "$LOG" && sudo chmod 666 "$LOG"
-    
-    # (O restante dos testes é bom, mas a configuração inicial já cuida deles)
-    
+
+
     # --------------------------------------------------------------------------------- #
-    
-    
-    
+
+
+
     # ------------------------------- FUNÇÕES ----------------------------------------- #
     CriarMonitor() {
         cat <<'EOF' > "$TARGET_DIR/monitor.sh"
@@ -391,18 +388,18 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     #
     # monitor.sh - Envia mensagem Embed personalizada via webhook
     #
-    
+
     # --- Variáveis ---
     TARGET_DIR="/home/ubuntu/scripts" # Confirme que este caminho é o mesmo que no user-data.sh
     source "$TARGET_DIR/.env" # Carrega WEBHOOK_URL
     COR=0
     MENSAGEM=""
     DATA=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')
-    
+
     STATUS_CODES=$(curl -s -o /dev/null -w "%{http_code}" "$URL_SERVIDOR")
     URL_IMAGEM="https://cdn.futura-sciences.com/buildsv6/images/largeoriginal/c/f/b/cfb0ad9812_72314_http.jpg"
     LOG="/var/log/monitoramento.log"
-    
+
     # --- Funções ---
     VerificarStatusCode() {
         case $STATUS_CODES in
@@ -422,7 +419,7 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
         esac
         echo "$(date): Status code: $STATUS_CODES - $MENSAGEM" >> "$LOG"
     }
-    
+
     ObterCor() {
         case $STATUS_CODES in
             2*) COR=3066993        ;;
@@ -431,12 +428,12 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
             *)  COR=8359053        ;;
         esac
     }
-    
+
     EnviarMensagem() {
         if [ -z "$WEBHOOK_URL" ] || [ "$WEBHOOK_URL" == "COLOQUE_SEU_WEBHOOK_DO_DISCORD_AQUI" ]; then
             return 1
         fi
-    
+
         JSON=$(cat <<_EOF_
     {
         "embeds": [
@@ -483,7 +480,7 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     )
         curl -X POST -H "Content-Type: application/json" -d "$JSON" "$WEBHOOK_URL" &>> "$LOG"
     }
-    
+
     # --- Execução ---
     VerificarStatusCode
     ObterCor
@@ -491,34 +488,97 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     EOF
         chmod +x "$TARGET_DIR/monitor.sh"
     }
-    
+
     CriarTest() {
         cat <<'EOF' > "$TARGET_DIR/test.sh"
     #!/usr/bin/env bash
-    # test.sh - Configura cron para o monitoramento
+    # test.sh - Instala as dependências necessárias
     #
-    
-    # --- Variáveis ---
+    # Autor:      Arthur Henrike L.M Gomes
+    # Manutenção: Arthur Henrike L.M Gomes
+    #
+    # ------------------------------------------------------------------------ #
+    #  Este programa verifica e instala as dependências necessárias para a
+    #  correta execução dos scripts de monitoramento.
+    #
+    #  Exemplos:
+    #      $ ./test.sh
+    #      Neste exemplo, o script será executado e, se alguma dependência
+    #      estiver faltando, ela será instalada automaticamente.
+    # ------------------------------------------------------------------------ #
+    # Histórico:
+    #
+    #   v1.0 21/07/2025, Arthur:
+    #       - Início do programa
+    #       - Conta com a funcionalidade de configurar o crontab
+    # ------------------------------------------------------------------------ #
+    # Testado em:
+    #   bash 5.1.16
+    # ------------------------------------------------------------------------ #
+
+    # ------------------------------- VARIÁVEIS ----------------------------------------- #
     LOG="/var/log/monitoramento.log"
     TEMP=$(mktemp)
     trap 'rm -f "$TEMP"' EXIT
     SCRIPT_DIR=$(dirname "$(realpath "$0")")
+
+    # ------------------------------------------------------------------------ #
+
+    # ------------------------------- TESTES ----------------------------------------- #
+
+
+
+    # Testa o crontab e arquivo log
+    [ ! -e "$LOG" ] && touch "$LOG" # Existe?
+    # Instala cron de forma universal
+    [ ! -x "$(which cron)" ] && apt-get install cron # Esta instalado?
+    systemctl status cron > "$TEMP"
+    [ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "cron"
+    [ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "cron"
+
+    # Test nginx
+    [ ! -x "$(which nginx)" ] && sudo apt install nginx # Esta instalado?
+    systemctl status nginx > "$TEMP"
+    [ -e "$TEMP" ] && egrep -q "inactive" "$TEMP" && systemctl "start" "nginx"
+    [ -e "$TEMP" ] && egrep -q "disabled" "$TEMP" && systemctl "enable" "nginx"
+
+    # Test html e css
+    [ ! -e "/var/www/html" ] && mkdir -p /var/www/html
+    [ ! -e "/var/www/html/css" ] && mkdir -p /var/www/html/css
+    [ ! -e "/var/www/html/index.html" ] && touch "/var/www/html/index.html"
+    [ ! -e "/var/www/html/css/style.css" ] && touch "/var/www/html/css/style.css"
+
+    # Test firewall
+    ufw status > "$TEMP"
+    [ -e "$TEMP" ] && egrep -q "Nginx.*HTTP" $TEMP |  grep -q 'DENY' $TEM && echo "$(ufw allow 'Nginx HTTP')" #Nginx esta DENY?
+
+    # ------------------------------------------------------------------------ #
+
+    # ------------------------------- FUNÇÕES ----------------------------------------- #
     
-    # --- Funções ---
     IniciarCrontab(){
-        local MONITOR_PATH="$SCRIPT_DIR/monitor.sh"
-        # Adiciona a tarefa ao crontab se ela ainda não existir, usando flock.
-        if ! (sudo crontab -l 2>/dev/null | grep -qF "$MONITOR_PATH"); then
-            (sudo crontab -l 2>/dev/null; echo "* * * * * /usr/bin/flock -xn $MONITOR_PATH -c \"/bin/bash $MONITOR_PATH\" &>> $LOG") | sudo crontab -
-        fi
+        local SETUP_DIR
+        SETUP_DIR=$(dirname "$(realpath "$0")")
+        local MONITOR_PATH="$SETUP_DIR/monitor.sh"
+        [ -x "$(which cron)" ] && \
+        (crontab -l 2>/dev/null | grep -qF "$MONITOR_PATH" || \
+        (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/flock -n /bin/bash '$MONITOR_PATH'") | crontab -)
     }
-    
-    # --- Execução ---
+
+
+
+    # ------------------------------------------------------------------------ #
+
+    # ------------------------------- EXECUÇÃO ----------------------------------------- #
+
     IniciarCrontab
+
+
+    # ------------------------------------------------------------------------ #
     EOF
         chmod +x "$TARGET_DIR/test.sh"
     }
-    
+
     CriarHtml() {
         cat <<'EOF' | sudo tee "/var/www/html/index.html" > /dev/null
     <!DOCTYPE html>
@@ -536,7 +596,7 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     </html>
     EOF
     }
-    
+
     CriarStyle() {
         cat <<'EOF' | sudo tee "/var/www/html/css/style.css" > /dev/null
     * {
@@ -544,7 +604,7 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
         padding: 0;
         box-sizing: border-box;
     }
-    
+
     body {
         font-family: 'Poppins', sans-serif;
         background-color: #f8f7ff;
@@ -557,19 +617,19 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
         min-height: 100vh;
         text-align: center;
     }
-    
+
     h1 {
         color: #4a4a4a;
         margin-bottom: 20px;
     }
-    
+
     p {
         color: #666;
         font-size: 1.1em;
     }
     EOF
     }
-    
+
     CriarEnv() {
         # Cria o .env apenas se não existir.
         [ ! -e "$TARGET_DIR/.env" ] && cat <<EOF > "$TARGET_DIR/.env"
@@ -577,21 +637,22 @@ Role a página para baixo até a seção "Dados do usuário (opcional)". Aqui, v
     URL_SERVIDOR="COLOQUE O IP PUBLICO DA EC2 AQUI"
     EOF
     }
-    
-    
-    
-    
+
+
+
+
     # ------------------------------------------------------------------------ #
-    
+
     # ------------------------------- EXECUÇÃO ----------------------------------------- #
-    
+
     CriarMonitor
     CriarTest
     CriarHtml
     CriarStyle
     CriarEnv
-    
+
     # ------------------------------------------------------------------------ #
+
 
 ´´´
 
